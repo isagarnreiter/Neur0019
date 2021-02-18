@@ -12,7 +12,7 @@ import os.path
 
 data = {}
 
-for i in range(200, 215):
+for i in range(206, 215):
     for j in range(1,13):
         if os.path.isfile(f"./Data_Mouse_PL{i}_sessionNum_{j}.mat") == True:
             mouse_trial = sc.loadmat(f"Data_Mouse_PL{i}_sessionNum_{j}")
@@ -24,3 +24,4 @@ for i in range(200, 215):
 
 dataf = pd.concat(data)
 
+dataf.to_csv('A_LFP_data.csv')

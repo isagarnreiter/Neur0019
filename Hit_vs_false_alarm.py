@@ -113,7 +113,7 @@ labels = ['Miss', 'Hit', 'FA', 'CR']
 fig1 = plt.figure(figsize=(8,4))
 ax1 = plt.subplot(111)
 for i in range(4):
-    ax1.errorbar(x[5800:], wS1_stats[i][mice_nb][0][5800:], wS1_stats[i][mice_nb][1][5800:], label = labels[i])
+    ax1.errorbar(x[5800:], wS1_stats[i][mice_nb][0][5800:], wS1_stats[i][mice_nb][1][5800:], label = labels[i], alpha=0.5)
 
 ax1.set_ylim(-300, 100)
 ax1.set_ylabel('uV')
@@ -159,7 +159,8 @@ ax1.set_title('Average Response 100 to 200ms after Stimulus')
 ax1.set_ylabel('uV')
 
 tStat_MissFA, pValue_MissFA = stats.ttest_ind(data_all[0], data_all[2], equal_var = False)
-tStat_HitFA, pValue_HitFA = stats.ttest_ind(data_all[0], data_all[2], equal_var = False)
+tStat_HitFA, pValue_HitFA = stats.ttest_ind(data_all[1], data_all[2], equal_var = False)
+tStat_MissHit, pValue_MissHit = stats.ttest_ind(data_all[0], data_all[1], equal_var = False)
 
 
 

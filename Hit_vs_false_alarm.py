@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+from matplotlib import gridspec
+
 
 def compressed_pickle(title, data):
     with bz2.BZ2File(title + '.pbz2', 'w') as f: 
@@ -38,7 +40,7 @@ data = {} #create empty dictionary to host data
 
 for i in [200, 201, 202, 203, 204, 205, 207, 209, 222, 223, 224, 225]:
     print(f'Mouse {i}')
-    for j in range(1,14):
+    for j in range(1,11):
         if os.path.isfile(f"D:/UserFolder/neur0019/Data_Mouse_PL{i}_sessionNum_{j}.mat") == True:
             mouse_trial = sc.loadmat(f"D:/UserFolder/neur0019/Data_Mouse_PL{i}_sessionNum_{j}")
             mouse_trial = pd.DataFrame(mouse_trial['tmp'][0])
@@ -98,7 +100,7 @@ for i in mice_nbs:
     regions['mPFC'][f'{i}'] = [[], [], [], []]
     for l in region_list:
         if np.isnan(all_data.loc[f'{i}_1'][0][f'Trial_LFP_{l}'][0][0]) == False:
-            for j in range(1,11):
+            for j in range(1,5):
                 try:
                     for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
                         if all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0] == 1:
@@ -134,7 +136,7 @@ for k in region_list:
     for i in mice_nbs:
         try:
             for j in range(4):
-                a = (np.array(regions[k][f'{i}'][j]).T)*10**6*(-1)
+                a = (np.array(regions[k][f'{i}'][j]).T)*10**6
                 mean = np.mean(a, axis=1)
                 sem = np.std(a, axis=1, ddof=1)/np.sqrt(np.size(a[0]))
                 stat[k][j].append([mean, sem])
@@ -161,14 +163,14 @@ for j in stat_list:
 
 x = np.linspace(-10,200, 4200)
 mice_nb = 3
-labels = ['Miss', 'Hit', 'FA', 'CR']
+labels = [['Miss', 'red'], ['Hit', 'green'], ['FA', 'blue'], ['CR', 'orange']]
 region_index = 4
 act_mouse_nb = list(regions[region_list[region_index]].keys())[mice_nb]
 
 fig1 = plt.figure(figsize=(8,4))
 ax1 = plt.subplot(111)
 for i in range(4):
-    ax1.plot(x, stat[stat_list[region_index]][i][mice_nb][0], label = labels[i], alpha=0.8)
+    ax1.plot(x, stat[stat_list[region_index]][i][mice_nb][0], label = labels[i][0], alpha=0.8)
 
 ax1.set_title(f'average SEP for mouse {act_mouse_nb} in {stat_list[region_index]}')
     
@@ -179,54 +181,147 @@ ax1.set_xlabel('Time (ms)')
 ax1.legend()
 
 #%%
-#set list with the average response, across mice for the same trial type
-#plot total average response for a single trial 
-
-average_across_mice = []
-for i in range(4): 
-    average_across_mice.append(np.mean(np.array(stat['wS1'][i,:,0].T), axis=1))
-
-average_across_mice = np.array(average_across_mice)
-
-fig2 = plt.figure(figsize=(8,4))
-ax1 = plt.subplot(111)
-for i in range(4):
-    ax1.plot(x, average_across_mice[i], label = labels[i])
-    
-ax1.set_ylim(-300, 100)
-ax1.set_ylabel('uV')
-ax1.set_xlabel('Time (ms)')
-ax1.legend()
+early_days = stat
+#%%
+late_days = stat
 
 #%%
+#set list with the average response, across mice for the same trial type
+#plot total average response for a single trial 
 #plot/compare the average response of neurons between 100-200 ms
 
-region = 'wS1'
+region = 'mPFC'
+lower= 50 #in ms
+upper = 200
 
-dim =stat[region][0:3, :, 0, 2200:4200].shape[1]
+dim =late_days[region][0:3, :, 0, lower*20+200:upper*20+200].shape[1]
 
-data_rs = stat[region][0:3, :, 0, 2200:4200].reshape(3, dim*2000)
-
+data_rs = late_days[region][0:3, :, 0, lower*20+200:upper*20+200].reshape(3, dim*((lower*20+200)-(upper*20+200)))
 mean_late_resp = np.mean(data_rs, axis=1)
 late_resp_sd = np.std(data_rs, axis=1, ddof=1)
 
-data_all = np.mean(stat[region][0:3, :, 0, 2200:4200], axis=2)
+data_all = np.mean(late_days[region][0:3, :, 0, lower*20+200:upper*20+200], axis=2)
 
-fig3 = plt.figure(figsize=(5, 7))
-ax1 = plt.subplot(111)
+Miss_FA = stats.wilcoxon(data_all[0], data_all[2])
+Hit_FA =  stats.wilcoxon(data_all[1], data_all[2])
+Miss_Hit = stats.wilcoxon(data_all[0], data_all[1])
+
+print('Miss-FA', Miss_FA)
+print('Hit-FA', Hit_FA)
+print('Miss-Hit', Miss_Hit)
+
+
+fig1 = plt.figure(figsize = (10, 4))
+fig1.suptitle(region)
+spec = gridspec.GridSpec(ncols=2, nrows=1,
+                         width_ratios=[5, 2])
+
+ax0 = fig1.add_subplot(spec[0])
+
+for i in range(4):
+    ax0.errorbar(x, np.mean(late_days[region][i,:,0].T, axis=1), np.mean(late_days[region][i,:,1].T, axis=1), alpha=0.03, c = labels[i][1])
+    ax0.plot(x, np.mean(late_days[region][i,:,0].T, axis=1), c = labels[i][1], label = labels[i][0])
+    
+ax0.vlines(0, -300, 100, color='grey')
+ax0.plot(np.linspace(lower, upper, 5), np.ones(5)*(-200), c='black')
+
+ax0.set_ylim(-300, 100)
+ax0.set_ylabel('Amplitude (uV)')
+ax0.set_xlabel('Time from stimulus (ms)')
+ax0.set_yticks([-300, -200, -100, 0, 100])
+ax0.set_yticklabels([-300, -200, -100, 0, 100], fontsize=8)
+ax0.set_xticks([ 0, 100, 200])
+ax0.set_xticklabels([0, 100, 200], fontsize=8)
+
+
+ax1 = fig1.add_subplot(spec[1])
 for j in range(len(data_all[1])):
     ax1.plot([1,2,3], data_all[:, j], c='grey', alpha=0.5)
+    
+for i in range(3):
+    ax1.errorbar([i+1], mean_late_resp[i], late_resp_sd[i], marker= 'o', ms=10, ls='', c=labels[i][1])
 
-ax1.errorbar([1,2,3], mean_late_resp, late_resp_sd, marker= 'o', ms=10, ls='')
+#ax1.set_ylim(-45, 30)
 ax1.set_xticks([1,2,3])
 ax1.set_xticklabels(['Miss', 'Hit', 'FA'])
-ax1.set_title('Average Response 100 to 200ms after Stimulus')
-ax1.set_ylabel('Amplitude (µV)')
+
+ax1.plot([1,2], [20, 20], c= 'black', alpha=0.8)
+ax1.plot([2,3], [17, 17], c= 'black', alpha=0.8)
+ax1.plot([1,3], [25, 25], c= 'black', alpha=0.8)
+ax1.text(1.5, 20, s='*')
+ax1.text(2.5, 17, s='-')
+ax1.text(2, 25, s='*')
+
+#%%
+#plot early training days vs late training days
+
+region = 'mPFC'
+lower= 50 #in ms
+upper = 200
+
+dim =late_days[region][0:3, :, 0, lower*20+200:upper*20+200].shape[1]
+
+colors = ['dodgerblue', 'blueviolet']
+
+data_rs_early = early_days[region][2, :, 0, lower*20+200:upper*20+200].reshape(dim*((lower*20+200)-(upper*20+200)))
+data_rs_late = late_days[region][2, :, 0, lower*20+200:upper*20+200].reshape(dim*((lower*20+200)-(upper*20+200)))
+
+mean_early_late = [np.mean(data_rs_early), np.mean(data_rs_late)]
+sd_early_late = [np.std(data_rs_early, ddof=1), np.std(data_rs_late, ddof=1)]
 
 
-tStat_MissFA, pValue_MissFA = stats.wilcoxon(data_all[0], data_all[2])
-tStat_HitFA, pValue_HitFA = stats.wilcoxon(data_all[1], data_all[2])
-tStat_MissHit, pValue_MissHit = stats.wilcoxon(data_all[0], data_all[1])
+data_early = np.mean(early_days[region][2, :, 0, lower*20+200:upper*20+200], axis=1)
+data_late = np.mean(late_days[region][2, :, 0, lower*20+200:upper*20+200], axis=1)
+
+data_all = np.array([data_early, data_late])
+
+early_late = stats.wilcoxon(data_all[0], data_all[1])
+
+print(early_late)
+
+
+fig1 = plt.figure(figsize = (10, 3))
+fig1.suptitle(region)
+spec = gridspec.GridSpec(ncols=2, nrows=1,
+                         width_ratios=[5, 2])
+
+
+ax0 = fig1.add_subplot(spec[0])
+
+
+ax0.errorbar(x, np.mean(late_days[region][2,:,0].T, axis=1), np.mean(late_days[region][2,:,1].T, axis=1), alpha=0.03, c=colors[0] )
+ax0.plot(x, np.mean(late_days[region][2,:,0].T, axis=1), c=colors[0])
+ax0.errorbar(x, np.mean(early_days[region][2,:,0].T, axis=1), np.mean(late_days[region][2,:,1].T, axis=1), alpha=0.03, c=colors[1])
+ax0.plot(x, np.mean(early_days[region][2,:,0].T, axis=1), c=colors[1])
+ 
+
+ax0.vlines(0, -200, 100, color='grey')
+ax0.plot(np.linspace(lower, upper, 5), np.ones(5)*(-100), c='black')
+
+ax0.set_ylim(-200, 100)
+ax0.set_ylabel('Amplitude (uV)')
+ax0.set_xlabel('Time from stimulus (ms)')
+ax0.set_yticks([-200, -100, 0, 100])
+ax0.set_yticklabels([-200, -100, 0, 100], fontsize=8)
+ax0.set_xticks([ 0, 100, 200])
+ax0.set_xticklabels([0, 100, 200], fontsize=8)
+
+
+ax1 = fig1.add_subplot(spec[1])
+for j in range(len(data_all[1])):
+    ax1.plot([1,2], data_all[:, j], c='grey', alpha=0.5)
+    
+for i in range(2):
+    ax1.errorbar([i+1], mean_early_late[i], sd_early_late[i], marker= 'o', ms=10, ls='', c=colors[i])
+
+#ax1.set_ylim(-45, 30)
+ax1.set_xticks([1,2])
+ax1.set_xlim(0.7, 2.3)
+ax1.set_xticklabels(['Early', 'Late'])
+
+ax1.plot([1,2], [10, 10], c= 'black', alpha=0.8)
+
+ax1.text(1.5, 10, s='-')
 
 
 #%%
@@ -334,4 +429,6 @@ ax1.legend()
 
 #ax1.plot(xs,FA_dens(xs))
 #ax1.plot(xs,Hit_dens(xs))
+
+#%%
 

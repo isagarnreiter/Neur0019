@@ -15,8 +15,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from matplotlib import gridspec
-
+from matplotlib import gridspec, colors
 
 def compressed_pickle(title, data):
     with bz2.BZ2File(title + '.pbz2', 'w') as f: 
@@ -24,7 +23,26 @@ def compressed_pickle(title, data):
  
 def decompress_pickle(file):
     data = bz2.BZ2File(file, 'rb')
-    data = cPickle.load(data)
+    data = pd.read_pickle(data)
+    return data
+
+def ms_to_freq(a):
+    return (a+100)*2
+
+def freq_to_ms(a):
+    return 0.5*a-100
+
+def take_second(elem):
+    return elem[1]
+
+def binArray(data, axis, binstep, binsize):
+    data = np.array(data)
+    dims = np.array(data.shape)
+    argdims = np.arange(data.ndim)
+    argdims[0], argdims[axis]= argdims[axis], argdims[0]
+    data = data.transpose(argdims)
+    data = [(np.take(data,np.arange(int(i*binstep),int(i*binstep+binsize)),0),0) for i in np.arange(dims[axis]//binstep)]
+    data = np.array(data).transpose(argdims)
     return data
 
 %matplotlib inline
@@ -100,7 +118,7 @@ for i in mice_nbs:
     regions['mPFC'][f'{i}'] = [[], [], [], []]
     for l in region_list:
         if np.isnan(all_data.loc[f'{i}_1'][0][f'Trial_LFP_{l}'][0][0]) == False:
-            for j in range(1,5):
+            for j in range(1,11):
                 try:
                     for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
                         if all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0] == 1:
@@ -325,27 +343,6 @@ ax1.text(1.5, 10, s='-')
 
 
 #%%
-#plot relating the amplitude and the time of the max response
-region = 'Trial_LFP_wS1'
-LickTime_data = []
-for i in mice_nbs:
-    if np.isnan(all_data.loc[f'{i}_1'][0][region][0][0]) == False:
-        for j in range(1,4):
-            try:
-                for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
-                    
-                    if np.isnan(all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0]) == False:
-                        a = np.min(all_data.loc[f'{i}_{j}'][0][region][k][2200:4200])
-                        b = np.where(all_data.loc[f'{i}_{j}'][0][region][k][2200:4200] == a)
-                        b = b[0][0]
-                        LickTime_data.append([a, b, all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0], all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0]])
-            
-            except:
-                KeyError
-                
-LickTime_data = np.array(LickTime_data, dtype=object)
-
-#%%
 # Linear regression
 
 
@@ -432,3 +429,106 @@ ax1.legend()
 
 #%%
 
+#plot relating the amplitude and the time of the max response
+region = 'Trial_LFP_wM1'
+LickTime_data = []
+for i in mice_nbs:
+    if np.isnan(all_data.loc[f'{i}_1'][0][region][0][0]) == False:
+        for j in range(1,11):
+            try:
+                for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
+                    
+                    if np.isnan(all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0]) == False:
+                        a = all_data.loc[f'{i}_{j}'][0][region][k]
+                        LickTime_data.append([a, all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0], all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0]])
+            
+            except:
+                KeyError
+                
+LickTime_data = np.array(LickTime_data, dtype=object)
+
+
+#%%
+
+bins = 20
+
+data_FA = np.array([x[0:2] for x in LickTime_data if x[2]==3])
+data_Hit = np.array([x[0:2] for x in LickTime_data if x[2]==1])
+
+data_FA = np.array(sorted(data_FA, key=take_second))
+data_FA = binArray(data_FA, axis=0, binstep=bins, binsize=bins)
+data_FA = np.array([np.mean(x, axis=0) for x in data_FA[:,0]])
+
+data_FA = [np.array([x[0] for x in data_FA])*10**6, data_FA[:,1]]
+
+
+data_Hit = np.array(sorted(data_Hit, key=take_second))
+data_Hit = binArray(data_Hit, axis=0, binstep=bins, binsize=bins)
+data_Hit = np.array([np.mean(x, axis=0) for x in data_Hit[:,0]])
+
+data_Hit = [np.array([x[0] for x in data_Hit])*10**6, data_Hit[:,1]]
+
+
+
+vmin = -375.5739138921249
+vmax = 134.49016984515336
+
+#%%
+#raster plot
+
+x_ticks = np.array([200, 1200, 2200, 3200, 4200])
+
+fig7 = plt.figure(figsize=(12,6), constrained_layout=True)
+spec7 = gridspec.GridSpec(ncols=3, nrows=1, figure=fig7, width_ratios=(5,5,1))
+fig7.suptitle('mPFC')
+ax1 = plt.subplot(121)
+ax1.set_title('Hit trials')
+ax1.set_xlabel('Time from stimulus (ms)')
+ax1.set_ylabel('Trial group')
+ax1.imshow(data_Hit[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
+ax1.set_xticks(x_ticks)
+ax1.set_xlim(0,4200)
+ax1.set_ylim(len(data_Hit[0]),0)
+ax1.set_xticklabels(freq_to_ms(x_ticks).astype(int))
+ax1.eventplot(ms_to_freq(data_Hit[1]).reshape(-1,1), color='black')
+
+ax2 = plt.subplot(122)
+ax2.set_title('FA trials')
+ax2.set_xlabel('Time from stimulus (ms)')
+ax2.imshow(data_FA[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
+ax2.set_xticks(x_ticks)
+ax2.set_xlim(0,4200)
+ax2.set_ylim(len(data_FA[0]),0)
+ax2.set_xticklabels(freq_to_ms(x_ticks).astype(int))
+ax2.eventplot(ms_to_freq(data_FA[1]).reshape(-1,1), color='black')
+
+
+plt.colorbar(ax1.imshow(data_Hit[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax)),fraction=0.08, orientation='horizontal', label='mV')
+plt.tight_layout()
+
+
+#%%
+
+#relate max amplitude to the first lick time
+
+max_depol_time_FA = np.array([])
+for i in range(len(data_FA[0])):
+    b = min(data_FA[0][i, 320:])
+    max_depol_time_FA = np.append(max_depol_time_FA, np.where(data_FA[0][i]==b))
+
+max_depol_time_Hit = np.array([])
+for i in range(len(data_Hit[0])):
+    b = min(data_Hit[0][i, 320:])
+    max_depol_time_Hit = np.append(max_depol_time_Hit, np.where(data_Hit[0][i]==b))
+
+
+fig8 = plt.figure(figsize=(10, 4))
+
+ax1 = plt.subplot(122)
+ax1.scatter(data_FA[1], freq_to_ms(max_depol_time_FA), alpha=0.5, color='blue')
+ax1.scatter(data_Hit[1], freq_to_ms(max_depol_time_Hit), alpha=0.5, color='green')
+ax1.set_xticks(freq_to_ms(x_ticks))
+ax1.set_yticks(freq_to_ms(x_ticks))
+
+ax1.set_ylim(0,2000)
+ax1.set_xlim(0,2000)

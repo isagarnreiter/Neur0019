@@ -430,44 +430,50 @@ ax1.legend()
 #%%
 
 #plot relating the amplitude and the time of the max response
-region = 'Trial_LFP_wM1'
-LickTime_data = []
-for i in mice_nbs:
-    if np.isnan(all_data.loc[f'{i}_1'][0][region][0][0]) == False:
-        for j in range(1,11):
-            try:
-                for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
-                    
-                    if np.isnan(all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0]) == False:
-                        a = all_data.loc[f'{i}_{j}'][0][region][k]
-                        LickTime_data.append([a, all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0], all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0]])
-            
-            except:
-                KeyError
-                
-LickTime_data = np.array(LickTime_data, dtype=object)
+Trial_LFP_region = all_data.loc['207_1'].index[2:-1]
+region_list = list(regions.keys())
 
+
+LickTime_data = {}
+for l in range(len(Trial_LFP_region)):
+    LickTime_data[region_list[l]] = np.array([], dtype=object)
+    for i in mice_nbs:
+        if np.isnan(all_data.loc[f'{i}_1'][0][Trial_LFP_region[l]][0][0]) == False:
+            for j in range(1,11):
+                try:
+                    for k in range(len(all_data.loc[f'{i}_{j}'][0]['Trial_Counter'])):
+                        if np.isnan(all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0]) == False:
+                            a = all_data.loc[f'{i}_{j}'][0][Trial_LFP_region[l]][k]
+                            LickTime_data[region_list[l]] = np.append(LickTime_data[region_list[l]], np.array([a, all_data.loc[f'{i}_{j}'][0]['Trial_FirstLickTime'][k][0], all_data.loc[f'{i}_{j}'][0]['Trial_ID'][k][0]]), axis=0)
+        
+                except:
+                    KeyError
+    LickTime_data[region_list[l]] = LickTime_data[region_list[l]].reshape(int(LickTime_data[region_list[l]].shape[0]/3),3)
 
 #%%
 
 bins = 20
-
-data_FA = np.array([x[0:2] for x in LickTime_data if x[2]==3])
-data_Hit = np.array([x[0:2] for x in LickTime_data if x[2]==1])
-
-data_FA = np.array(sorted(data_FA, key=take_second))
-data_FA = binArray(data_FA, axis=0, binstep=bins, binsize=bins)
-data_FA = np.array([np.mean(x, axis=0) for x in data_FA[:,0]])
-
-data_FA = [np.array([x[0] for x in data_FA])*10**6, data_FA[:,1]]
-
-
-data_Hit = np.array(sorted(data_Hit, key=take_second))
-data_Hit = binArray(data_Hit, axis=0, binstep=bins, binsize=bins)
-data_Hit = np.array([np.mean(x, axis=0) for x in data_Hit[:,0]])
-
-data_Hit = [np.array([x[0] for x in data_Hit])*10**6, data_Hit[:,1]]
-
+data = {}
+for j in ['Hit', 'FA']:
+    data[j] = {}
+    for i in region_list:
+        if j == 'Hit':
+            data[j][i] = np.array([x[0:2] for x in LickTime_data[i] if x[2]==1], dtype=object)
+        if j == 'FA':
+            data[j][i] = np.array([x[0:2] for x in LickTime_data[i] if x[2]==3], dtype=object)
+    
+        data[j][i] = np.array(sorted(data[j][i], key=take_second))
+        data[j][i] = binArray(data[j][i], axis=0, binstep=bins, binsize=bins)
+        data[j][i] = np.array([np.mean(x, axis=0) for x in data[j][i][:,0]])
+    
+        data[j][i] = [np.array([x[0] for x in data[j][i]])*10**6, data[j][i][:,1]]
+        
+        max_depol_time = np.array([])
+        for k in range(len(data[j][i][0])):
+            b = min(data[j][i][0][k, 320:])
+            max_depol_time = np.append(max_depol_time, np.where(data[j][i][0][k]==b))
+        
+        data[j][i].append(max_depol_time)
 
 
 vmin = -375.5739138921249
@@ -476,34 +482,36 @@ vmax = 134.49016984515336
 #%%
 #raster plot
 
+region = 'mPFC'
+
 x_ticks = np.array([200, 1200, 2200, 3200, 4200])
 
 fig7 = plt.figure(figsize=(12,6), constrained_layout=True)
 spec7 = gridspec.GridSpec(ncols=3, nrows=1, figure=fig7, width_ratios=(5,5,1))
-fig7.suptitle('mPFC')
+fig7.suptitle(region)
 ax1 = plt.subplot(121)
 ax1.set_title('Hit trials')
 ax1.set_xlabel('Time from stimulus (ms)')
 ax1.set_ylabel('Trial group')
-ax1.imshow(data_Hit[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
+ax1.imshow(data['Hit'][region][0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
 ax1.set_xticks(x_ticks)
 ax1.set_xlim(0,4200)
-ax1.set_ylim(len(data_Hit[0]),0)
+ax1.set_ylim(len(data['Hit'][region][0]),0)
 ax1.set_xticklabels(freq_to_ms(x_ticks).astype(int))
-ax1.eventplot(ms_to_freq(data_Hit[1]).reshape(-1,1), color='black')
+ax1.eventplot(ms_to_freq(data['Hit'][region][1]).reshape(-1,1), color='black')
 
 ax2 = plt.subplot(122)
 ax2.set_title('FA trials')
 ax2.set_xlabel('Time from stimulus (ms)')
-ax2.imshow(data_FA[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
+ax2.imshow(data['FA'][region][0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax))
 ax2.set_xticks(x_ticks)
 ax2.set_xlim(0,4200)
-ax2.set_ylim(len(data_FA[0]),0)
+ax2.set_ylim(len(data['FA'][region][0]),0)
 ax2.set_xticklabels(freq_to_ms(x_ticks).astype(int))
-ax2.eventplot(ms_to_freq(data_FA[1]).reshape(-1,1), color='black')
+ax2.eventplot(ms_to_freq(data['FA'][region][1]).reshape(-1,1), color='black')
 
 
-plt.colorbar(ax1.imshow(data_Hit[0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax)),fraction=0.08, orientation='horizontal', label='mV')
+plt.colorbar(ax1.imshow(data['Hit'][region][0], aspect='auto', norm=colors.Normalize(vmin=vmin, vmax=vmax)),fraction=0.08, orientation='horizontal', label='mV')
 plt.tight_layout()
 
 
@@ -511,22 +519,12 @@ plt.tight_layout()
 
 #relate max amplitude to the first lick time
 
-max_depol_time_FA = np.array([])
-for i in range(len(data_FA[0])):
-    b = min(data_FA[0][i, 320:])
-    max_depol_time_FA = np.append(max_depol_time_FA, np.where(data_FA[0][i]==b))
-
-max_depol_time_Hit = np.array([])
-for i in range(len(data_Hit[0])):
-    b = min(data_Hit[0][i, 320:])
-    max_depol_time_Hit = np.append(max_depol_time_Hit, np.where(data_Hit[0][i]==b))
-
 
 fig8 = plt.figure(figsize=(10, 4))
 
 ax1 = plt.subplot(122)
-ax1.scatter(data_FA[1], freq_to_ms(max_depol_time_FA), alpha=0.5, color='blue')
-ax1.scatter(data_Hit[1], freq_to_ms(max_depol_time_Hit), alpha=0.5, color='green')
+ax1.scatter(data_Hit[1], freq_to_ms(data['Hit'][region][2]), alpha=0.5, color='green')
+ax1.scatter(data_FA[1], freq_to_ms(data['FA'][region][2]), alpha=0.5, color='blue')
 ax1.set_xticks(freq_to_ms(x_ticks))
 ax1.set_yticks(freq_to_ms(x_ticks))
 

@@ -430,9 +430,13 @@ ax1.legend()
 #%%
 
 #plot relating the amplitude and the time of the max response
-Trial_LFP_region = all_data.loc['207_1'].index[2:-1]
-region_list = list(regions.keys())
 
+#Trial_LFP_region = ['Trial_LFP_wS2', 'Trial_LFP_mPFC']
+Trial_LFP_region = all_data.loc['207_1'].index[2:-1]
+
+region_list = ['wS1', 'wS2', 'wM1', 'dCA1', 'mPFC']
+
+mice_nbs = [207]  
 
 LickTime_data = {}
 for l in range(len(Trial_LFP_region)):
@@ -450,9 +454,11 @@ for l in range(len(Trial_LFP_region)):
                     KeyError
     LickTime_data[region_list[l]] = LickTime_data[region_list[l]].reshape(int(LickTime_data[region_list[l]].shape[0]/3),3)
 
+
+
 #%%
 
-bins = 20
+bins = 10
 data = {}
 for j in ['Hit', 'FA']:
     data[j] = {}
@@ -471,7 +477,7 @@ for j in ['Hit', 'FA']:
         max_depol_time = np.array([])
         for k in range(len(data[j][i][0])):
             b = min(data[j][i][0][k, 320:])
-            max_depol_time = np.append(max_depol_time, np.where(data[j][i][0][k]==b))
+            max_depol_time = np.append(max_depol_time, freq_to_ms(np.where(data[j][i][0][k]==b)[0][0]))
         
         data[j][i].append(max_depol_time)
 
@@ -479,10 +485,12 @@ for j in ['Hit', 'FA']:
 vmin = -375.5739138921249
 vmax = 134.49016984515336
 
+
+
 #%%
 #raster plot
 
-region = 'mPFC'
+region = 'wS2'
 
 x_ticks = np.array([200, 1200, 2200, 3200, 4200])
 
@@ -523,10 +531,47 @@ plt.tight_layout()
 fig8 = plt.figure(figsize=(10, 4))
 
 ax1 = plt.subplot(122)
-ax1.scatter(data_Hit[1], freq_to_ms(data['Hit'][region][2]), alpha=0.5, color='green')
-ax1.scatter(data_FA[1], freq_to_ms(data['FA'][region][2]), alpha=0.5, color='blue')
+ax1.scatter(data['Hit'][region][1], freq_to_ms(data['Hit'][region][2]), alpha=0.5, color='green')
+ax1.scatter(data['FA'][region][1], freq_to_ms(data['FA'][region][2]), alpha=0.5, color='blue')
 ax1.set_xticks(freq_to_ms(x_ticks))
 ax1.set_yticks(freq_to_ms(x_ticks))
 
 ax1.set_ylim(0,2000)
 ax1.set_xlim(0,2000)
+
+#%%
+from sklearn import linear_model
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+
+
+condition = 'Hit'
+region_list = ['wS1', 'wS2', 'wM1', 'dCA1', 'mPFC']
+
+
+df = pd.DataFrame()
+for i in region_list:
+    df[i] = data[condition][i][2]
+df['Licktime'] = data[condition][i][1]
+
+
+X = df[region_list]
+y = df['Licktime']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state=9)
+
+
+regr = linear_model.LinearRegression()
+regr.fit(X_train, y_train)
+
+pred = regr.predict(X_test)
+
+test_set_rmse = (np.sqrt(mean_squared_error(y_test, pred)))
+
+test_set_r2 = r2_score(y_test, pred)
+
+print('data nb: \n', len(X))
+print('Intercept: \n', regr.intercept_)
+print('Coefficients: \n', regr.coef_)
+print('rmse: \n', test_set_rmse)
+print('r2: \n', test_set_r2)

@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 from scipy.stats import gaussian_kde, probplot
 import pylab
-import statsmodels.api
+import yellowbrick
 
 def compressed_pickle(title, data):
     with bz2.BZ2File(title + '.pbz2', 'w') as f: 
@@ -99,8 +99,8 @@ compressed_pickle('D:/UserFolder/neur0019/all_data_short', dataf)
 #load the data
 all_data = decompress_pickle('D:/UserFolder/neur0019/all_data_short.pbz2') 
 
-#%% =============================================================================
-# =============================================================================
+#%% 
+
 #sort the data to seperate into miss, hit, FA and CR trials, per region and per mouse
 
 mice_nbs = [200, 201, 202, 204, 205, 207, 209, 222, 223, 224, 225]    
@@ -144,7 +144,8 @@ for region in region_list:
                 for l in range(len(regions[region][str(i)][k])):
                     regions[region][str(i)][k][l] = butter_bandpass_filter(regions[region][str(i)][k][l], lowcut, highcut, fs)
                     regions[region][str(i)][k][l] =  regions[region][str(i)][k][l] - regions[region][str(i)][k][l][100]
-                
+
+#create dict with the mean (+/- sem) LFP, per mouse, per region, per trial type
 stat = {'wS1': [[], [], [], []], 'wS2': [[], [], [], []], 'wM1': [[], [], [], []], 'dCA1': [[], [], [], []], 'mPFC': [[], [], [], []]}
 stat_list = list(stat.keys())
 
@@ -170,43 +171,19 @@ for j in stat_list:
                 KeyError
 
 #%%
-#plot all the trials for a single mice, decide which mouse by determining mice_nb
-
-#LFP Data recorded at 2 kHz - so one value recorded every 0.5 ms.
-#total recording length in 0.5 s
-
-
-x = np.linspace(-10,2000, 4200)
-mice_nb = 3
-labels = [['Miss', 'red'], ['Hit', 'green'], ['FA', 'blue'], ['CR', 'orange']]
-region_index = 4
-act_mouse_nb = list(regions[region_list[region_index]].keys())[mice_nb]
-
-fig1 = plt.figure(figsize=(8,4))
-ax1 = plt.subplot(111)
-for i in range(4):
-    ax1.plot(x, stat[stat_list[region_index]][i][mice_nb][0], label = labels[i][0], alpha=0.8)
-
-ax1.set_title(f'average SEP for mouse {act_mouse_nb} in {stat_list[region_index]}')
-    
-ax1.set_ylim(-300, 100)
-ax1.set_ylabel('uV')
-ax1.set_xlabel('Time (ms)')
-ax1.legend()
-
-#%%
 early_days = stat
 #%%
 late_days = stat
 #%%
 all_days = stat
 #%%
-#set list with the average response, across mice for the same trial type
+#code to produce figure 2 
 
 region = 'wS2'
 lower= -50 #in ms
 upper = 600
 trial_period = all_days
+labels = [['Miss', 'red'], ['Hit', 'green'], ['FA', 'blue'], ['CR', 'orange']]
 bin_size= 10*2
 
 p_value_data = trial_period[region][:,:,0,ms_to_freq(lower):ms_to_freq(upper)]
@@ -250,8 +227,7 @@ plt.tight_layout()
 
 #plt.colorbar(ax1.imshow(p_values[:,:,1].T, aspect='auto', norm=colors.LogNorm(vmin=0.009, vmax=1)), orientation='horizontal', ticks = [0.01, 0.05, 0.1, 1])
 #%%
-#plot early training days vs late training days
-#plot the heat map describing p-values between early and late training days
+#code to produce Figure 3
 
 region = 'mPFC'
 i = 2
@@ -260,6 +236,7 @@ bin_size= 10*2
 lower= -50 #in ms
 upper = 600
 
+#extract the p_values across the trial length 
 p_value_data = np.array([early_days[region][i,:,0,100:], late_days[region][i,:,0,100:]])
 p_value_data = p_value_data.reshape(2, p_value_data.shape[1], int((ms_to_freq(upper)-ms_to_freq(lower))/bin_size), bin_size)
 p_value_data = np.mean(p_value_data, axis = 3)
